@@ -15,6 +15,7 @@ export default function OcrQueuePage() {
   const [statusMap, setStatusMap] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
+  const [showAllFlag, setShowAllFlag] = useState(false);
   const [dbStatus, setDbStatus] = useState(null);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function OcrQueuePage() {
     try {
       const all = await listAllMeta();
       const pending = (all || []).filter((m) => !m.ocrSuggestion && m.driveItemId);
+      setShowAllFlag(!!showAll);
       setItems(showAll ? (all || []) : pending);
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -80,7 +82,7 @@ export default function OcrQueuePage() {
         const ocrBlob = new Blob([text || ''], { type: 'text/plain' });
         await uploadFile(ocrPath, ocrBlob, { headers: { 'Content-Type': 'text/plain' } });
         // update meta
-        const updated = Object.assign({}, meta, { ocrSuggestion: text, ocrConfidence: confidence, ocrPath, uploadedAt: new Date().toISOString() });
+        const updated = Object.assign({}, meta, { ocrSuggestion: text, ocrConfidence: confidence, ocrPath, ocrDate: new Date().toISOString(), uploadedAt: new Date().toISOString() });
         await putMeta(updated);
         setStatusMap((s) => ({ ...s, [uuid]: { state: 'done', text, confidence } }));
       } catch (err) {
@@ -192,7 +194,7 @@ export default function OcrQueuePage() {
           }
         }}>Dump meta to console</Button>{' '}
         <label style={{ marginLeft: 12 }}>
-          <input type="checkbox" onChange={(e) => refreshList(e.target.checked)} /> Show all meta
+          <input type="checkbox" checked={showAllFlag} onChange={(e) => { setShowAllFlag(e.target.checked); refreshList(e.target.checked); }} /> Show all meta
         </label>
       </div>
       {statusMap && statusMap.__rebuild && (
@@ -215,25 +217,59 @@ export default function OcrQueuePage() {
       )}
       <div className="mt-3">
         {items.length === 0 ? <p>No pending items found.</p> : (
-          <div>
-            {items.map((m) => {
-              const s = statusMap[m.uuid];
-              return (
-                <div key={m.uuid} style={{ marginBottom: 12 }}>
-                  <input type="checkbox" checked={!!selected[m.uuid]} onChange={(e) => setSelected((s2) => ({ ...s2, [m.uuid]: e.target.checked }))} />{' '}
-                  <strong>{m.originalFileName || m.uuid}</strong>
-                  {' - '}
-                  <em>{m.scanYear}</em>
-                  {' - '}
-                  {s ? (
-                    s.state === 'running' ? <span><Spinner animation="border" size="sm" /> Running</span>
-                    : s.state === 'done' ? <span>Done (confidence: {Math.round(s.confidence || 0)})</span>
-                    : <span>Error: {s.error}</span>
-                  ) : <span>Ready</span>}
-                </div>
-              );
-            })}
-          </div>
+          showAllFlag ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table table-sm">
+                <thead>
+                  <tr>
+                    {(() => {
+                      const cols = new Set();
+                      items.forEach((it) => Object.keys(it || {}).forEach((k) => cols.add(k)));
+                      return Array.from(cols).map((c) => <th key={c}>{c}</th>);
+                    })()}
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((m, idx) => (
+                    <tr key={m.uuid || idx}>
+                      {(() => {
+                        const cols = new Set();
+                        items.forEach((it) => Object.keys(it || {}).forEach((k) => cols.add(k)));
+                        return Array.from(cols).map((c) => {
+                          const v = m[c];
+                          let txt = '';
+                          if (v === null || typeof v === 'undefined') txt = '';
+                          else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') txt = String(v);
+                          else txt = JSON.stringify(v);
+                          return <td key={c}>{txt}</td>;
+                        });
+                      })()}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div>
+              {items.map((m) => {
+                const s = statusMap[m.uuid];
+                return (
+                  <div key={m.uuid} style={{ marginBottom: 12 }}>
+                    <input type="checkbox" checked={!!selected[m.uuid]} onChange={(e) => setSelected((s2) => ({ ...s2, [m.uuid]: e.target.checked }))} />{' '}
+                    <strong>{m.originalFileName || m.uuid}</strong>
+                    {' - '}
+                    <em>{m.scanYear}</em>
+                    {' - '}
+                    {s ? (
+                      s.state === 'running' ? <span><Spinner animation="border" size="sm" /> Running</span>
+                      : s.state === 'done' ? <span>Done (confidence: {Math.round(s.confidence || 0)})</span>
+                      : <span>Error: {s.error}</span>
+                    ) : <span>Ready</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
       <Modal show={showConfirm} onHide={() => setShowConfirm(false)}>

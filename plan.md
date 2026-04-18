@@ -164,12 +164,29 @@ src/
   - progress + retry
 - For each JPG:
   - uuid
-  - upload to the app folder year path, e.g. `2026/<filename>` (stored under `Apps/receipts-spa/2026/filename`)
+  - canonical storage name (UUID) on upload; preserve original filename in meta
+  - upload to the app folder year path using the canonical name, e.g. `2026/<uuid>.jpg` (stored under `Apps/receipts-spa/2026/<uuid>.jpg`)
   - write meta JSON to `<year>/meta/uuid.json` (e.g. `Apps/receipts-spa/2026/meta/uuid.json`) with initial meta per requirements
   - upsert into IndexedDB
 
 **Acceptance**
 - Can upload 100+ JPGs reliably
+
+**Additional Implementation Steps (duplicate handling)**
+- Compute an exact content hash (SHA-256) for each file client-side before uploading using `SubtleCrypto.digest`.
+- Maintain a local hash index in IndexedDB mapping `contentHash -> driveItemId / uuid` for quick duplicate lookup.
+- If an exact hash match is found: skip re-upload and create a meta JSON that references the existing `driveItemId` (and record the original filename in the meta). Optionally prompt the user.
+- If hash differs but filename conflicts with an existing file name in the target folder: store the new file under a UUID filename to avoid overwriting and record the original filename in meta.
+- Optionally compute a perceptual hash (pHash) for near-duplicate detection and surface likely duplicates to the user for confirmation before upload.
+
+**Testing & Verification**
+- Unit test content-hash computation and meta JSON creation.
+- Integration test: upload identical files twice and assert second upload references existing drive item (no duplicate file created).
+- Integration test: upload same filename with different contents and assert both stored with distinct UUID names and both metas preserved.
+
+**Post-run summary UI**
+- Display a concise run summary after each upload run showing: uploaded count, duplicates skipped, failures, and a link to view uploaded items. This should be visible as a small dismissible notification (toast) and also available in a modal or settings diagnostics page for review.
+- Store the last-run report in IndexedDB for auditing and later display.
 
 ---
 
@@ -266,5 +283,10 @@ These items are useful improvements or operational features that can be schedule
 - **Error reporting & analytics:** integrate Sentry/Telemetry for production error tracking and usage metrics (low).
 - **Localization readiness:** extract UI strings and support at least one extra locale (low).
 - **Admin diagnostics page:** show OneDrive status, quota, recent errors, and a migration dry-run report (low→medium).
+
+- **Shared deduplication index (optional / medium):** implement a shared index so duplicates are detected across devices/users. Options:
+  - Server-backed index (recommended for scale): a small service or serverless function that accepts authenticated index updates (contentHash -> driveItemId) and answers lookup requests.
+  - OneDrive-based index (simple): maintain a JSON index file in the app folder (e.g., `Apps/receipts-spa/hash-index.json`) and update it with optimistic concurrency using ETags. Simpler but has merge/consent and race conditions to handle.
+  Implementation considerations: authentication, admin consent, rate limits, conflict resolution (ETag-based merge), privacy (hash-only vs metadata), and costs. Marked low priority relative to core flows but useful for cross-device deduplication.
 
 These deliverables are intentionally low priority — they improve robustness and operations but are not required for the core user flows.

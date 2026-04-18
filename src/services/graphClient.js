@@ -6,7 +6,7 @@ export function useGraphClient() {
   const { acquireToken } = useGraphToken();
 
   const uploadFile = useCallback(
-    async (drivePath, file) => {
+    async (drivePath, file, options = {}) => {
       if (!file) throw new Error('file required');
       const token = await acquireToken();
       if (!token) throw new Error('Unable to acquire access token');
@@ -15,11 +15,11 @@ export function useGraphClient() {
       // Use the app folder (approot) so files are stored in the app-specific OneDrive folder
       const url = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodedPath}:/content`;
 
+      const headers = { Authorization: `Bearer ${token}`, ...(options.headers || {}) };
+
       const resp = await fetch(url, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: file,
       });
 

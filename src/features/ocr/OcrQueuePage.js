@@ -84,6 +84,16 @@ export default function OcrQueuePage() {
         // update meta
         const updated = Object.assign({}, meta, { ocrSuggestion: text, ocrConfidence: confidence, ocrPath, ocrDate: new Date().toISOString(), uploadedAt: new Date().toISOString() });
         await putMeta(updated);
+        // also persist updated meta JSON back to OneDrive so remote meta includes OCR info
+        try {
+          const metaPath = `${scanReceiptsPath(updated.scanYear || new Date().getFullYear())}/meta/${updated.uuid}.json`;
+          const metaBlob = new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' });
+          await uploadFile(metaPath, metaBlob, { headers: { 'Content-Type': 'application/json' } });
+        } catch (e) {
+          // non-fatal: log and continue
+          // eslint-disable-next-line no-console
+          console.warn('failed to upload updated meta JSON after OCR', e);
+        }
         setStatusMap((s) => ({ ...s, [uuid]: { state: 'done', text, confidence } }));
       } catch (err) {
         setStatusMap((s) => ({ ...s, [uuid]: { state: 'error', error: String(err) } }));

@@ -27,3 +27,18 @@
    - **Privacy & security:** The shared index must store only non-PII entries (hashes and minimal metadata such as driveItemId and uuid). The service must require authentication and rate-limit updates; consider batching writes.
    - **Fallback:** If a shared index is unavailable, the app must fall back to local per-device IndexedDB hash index and continue functioning correctly.
 
+View and Search Metadata
+   - **Requirement:** Provide a metadata viewer that lets users browse uploaded receipts' metadata and search/filter by common fields (original filename, uuid, scanYear, uploadedAt, categories, and contentHash).
+   - **UI:** Expose a searchable list or table in the app (`/metadata` or a Settings area) with column sorting, text search, and filters for year and category.
+   - **Performance:** Support incremental loading and client-side filtering for responsiveness; serverless OneDrive-only implementations should page via Graph `children` and fetch meta JSON on demand.
+   - **Permissions:** Respect the same OneDrive app-folder permissions and do not expose files outside the app folder. The metadata viewer must only read meta JSON files stored under `<year>/meta/*.json`.
+   - **Export:** Allow exporting search results to CSV for user reporting or backup.
+
+Display file from metadata view
+   - **Requirement:** From the metadata viewer, allow users to open or preview the actual receipt file referenced by the meta JSON.
+   - **Behavior:** Clicking an item in the metadata list must provide options to Preview (in a modal or pane), Open in new tab, and Download. Preview should support common types (images: JPEG/PNG/WebP, PDFs) using an embedded viewer; unknown types should present a safe download link.
+   - **Data fetching:** Fetch file content on demand via Graph (e.g., `GET /me/drive/special/approot:/<path>:/content`) using the app's access token; lazy-load binaries to avoid excessive bandwidth.
+   - **Thumbnails & performance:** Use Graph thumbnails when available or store lightweight thumbnails in metadata to speed the list view; support pagination and fetch meta JSON content on demand to keep main listing fast.
+   - **Security & scope:** Never expose files outside the app folder. All file fetches must use authenticated Graph requests and respect ETag/versioning where useful. Do not render file content until permissions are verified.
+   - **UX considerations:** Show loading and error states, a clear download link, and a fallback to direct download if inline preview fails. Provide an accessible keyboard-friendly modal and ensure images/PDFs can be zoomed/scrolled.
+

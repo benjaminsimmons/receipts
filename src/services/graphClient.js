@@ -91,7 +91,45 @@ export function useGraphClient() {
     [acquireToken]
   );
 
+    const downloadFile = useCallback(
+      async (drivePath) => {
+        const token = await acquireToken();
+        if (!token) throw new Error('Unable to acquire access token');
+        const encodedPath = encodeURIComponent(drivePath);
+        const url = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodedPath}:/content`;
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!resp.ok) {
+          const text = await resp.text();
+          const err = new Error(`Download failed: ${resp.status} ${resp.statusText}`);
+          err.body = text;
+          throw err;
+        }
+        return resp.blob();
+      },
+      [acquireToken]
+    );
+
+    const downloadById = useCallback(
+      async (itemId) => {
+        const token = await acquireToken();
+        if (!token) throw new Error('Unable to acquire access token');
+        const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!resp.ok) {
+          const text = await resp.text();
+          const err = new Error(`Download by id failed: ${resp.status} ${resp.statusText}`);
+          err.body = text;
+          throw err;
+        }
+        return resp.blob();
+      },
+      [acquireToken]
+    );
+
+    return { uploadFile, listFiles, movePath, downloadFile, downloadById };
+
   return { uploadFile, listFiles, movePath };
 }
 
 export default useGraphClient;
+

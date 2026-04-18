@@ -153,6 +153,29 @@ src/
 - First run caches all meta
 - Second run fetches near-zero if unchanged
 
+## Slice G.1 — Metadata Viewer & File Preview
+**Deliverables**
+- Searchable metadata viewer UI (route: `/metadata` or Settings > Metadata)
+- List/table view showing key metadata columns: `originalFileName`, `uuid`, `scanYear`, `uploadedAt`, `category`, `contentHash`, `driveItemId` and an actions column
+- Text search (filename/uuid/contentHash), column filters (year, category), and column sorting
+- Pagination / incremental loading via Graph children listing of `<year>/meta` and on-demand fetch of meta JSON
+- Preview modal/pane supporting images (JPEG/PNG/WebP) and PDFs; options to Open in new tab and Download
+- Thumbnails: use Graph thumbnails when available, otherwise generate or fetch a small preview on demand and cache in IndexedDB
+- Export search results to CSV
+
+**Implementation notes**
+- Use the sync engine (Slice G) to populate local `receiptMeta` table; the metadata viewer queries IndexedDB for fast local search/filtering.
+- For OneDrive-only deployments, implement Graph-backed listing: call `GET /me/drive/special/approot:/<year>/meta:/children` to discover meta files and fetch contents lazily.
+- Implement a preview fetch that requests `GET /me/drive/special/approot:/<year>/<uuid>.<ext>:/content` and streams into an object URL for the modal. Ensure Content-Type is respected.
+- Thumbnails: prefer `GET /me/drive/items/<id>/thumbnails` where available; otherwise fetch a small version of the image and store a reduced-size blob in `blobCache`.
+- Ensure accessibility: keyboard navigation, focus management, ARIA labels on modal and table.
+
+**Acceptance**
+- User can open `/metadata`, see pages of metadata, perform a text search and filter by year/category with responsive results.
+- Clicking an item opens a preview modal showing an image or PDF inline, with buttons to Open in new tab and Download.
+- Export to CSV produces a valid CSV that includes at least `uuid,originalFileName,scanYear,uploadedAt,category,contentHash,driveItemId`.
+- App uses lazy fetching and does not pre-download all binaries when opening the metadata view.
+
 ---
 
 ## Slice H — Bulk Upload (Scan Year folders)

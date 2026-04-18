@@ -10,19 +10,29 @@ function supportsIDB() {
   return typeof indexedDB !== 'undefined' && indexedDB !== null;
 }
 
-function openDb() {
-  return new Promise((resolve, reject) => {
-    if (!supportsIDB()) return resolve(null);
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'hash' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+async function openDb() {
+  if (!supportsIDB()) return null;
+  // Open current DB to inspect stores
+  const cur = await new Promise((resolve, reject) => {
+    const r = indexedDB.open(DB_NAME);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
   });
+  const missing = !cur.objectStoreNames.contains(STORE_NAME);
+  if (!missing) return cur;
+  const newVersion = cur.version + 1;
+  cur.close();
+  // Upgrade DB to create missing store
+  const upgraded = await new Promise((resolve, reject) => {
+    const rq = indexedDB.open(DB_NAME, newVersion);
+    rq.onupgradeneeded = () => {
+      const db = rq.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'hash' });
+    };
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+  return upgraded;
 }
 
 async function getByHash(hash) {
@@ -65,3 +75,29 @@ async function putHash(hash, meta) {
 export { getByHash, putHash };
 
 export default { getByHash, putHash };
+
+async function listAllHashes() {
+  if (!supportsIDB()) {
+    return Array.from(inMemory.values());
+  }
+  const db = await openDb();
+  if (!db) return Array.from(inMemory.values());
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const items = [];
+    const req = store.openCursor();
+    req.onsuccess = (ev) => {
+      const cursor = ev.target.result;
+      if (cursor) {
+        items.push(cursor.value);
+        cursor.continue();
+      } else {
+        resolve(items);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export { listAllHashes };

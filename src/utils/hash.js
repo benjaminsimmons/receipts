@@ -9,7 +9,9 @@ async function arrayBufferFrom(input) {
   if (typeof input === 'string') {
     const TextEncoderCtor = (typeof globalThis !== 'undefined' && globalThis.TextEncoder)
       ? globalThis.TextEncoder
-      : (typeof require === 'function' ? require('util').TextEncoder : undefined);
+      : (typeof Buffer !== 'undefined' ? class {
+        encode(s) { return new Uint8Array(Buffer.from(s, 'utf8')); }
+      } : undefined);
     if (!TextEncoderCtor) throw new Error('No TextEncoder available');
     return new TextEncoderCtor().encode(input).buffer;
   }
@@ -39,8 +41,9 @@ export async function computeSHA256(input) {
 
   // Fallback to Node.js crypto (for tests / Node environments)
   try {
-    // eslint-disable-next-line global-require, import/no-extraneous-dependencies
-    const { createHash } = require('crypto');
+    // Use eval('require') to avoid webpack trying to polyfill node 'crypto'
+    // eslint-disable-next-line no-eval, global-require
+    const { createHash } = eval('require')('crypto');
     const hash = createHash('sha256');
     hash.update(Buffer.from(buf));
     return hash.digest('hex');

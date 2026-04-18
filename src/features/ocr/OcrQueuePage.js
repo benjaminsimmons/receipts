@@ -233,9 +233,12 @@ export default function OcrQueuePage() {
                 <thead>
                   <tr>
                     {(() => {
+                      const preferred = ['uuid','originalFileName','scanYear','driveItemId','contentHash','ocrDate','ocrConfidence','ocrPath','uploadedAt','eTag'];
                       const cols = new Set();
                       items.forEach((it) => Object.keys(it || {}).forEach((k) => cols.add(k)));
-                      return Array.from(cols).map((c) => <th key={c}>{c}</th>);
+                      const remaining = Array.from(cols).filter((c) => !preferred.includes(c));
+                      const ordered = preferred.concat(remaining);
+                      return ordered.map((c) => <th key={c}>{c}</th>);
                     })()}
                   </tr>
                 </thead>
@@ -243,13 +246,20 @@ export default function OcrQueuePage() {
                   {items.map((m, idx) => (
                     <tr key={m.uuid || idx}>
                       {(() => {
+                        const preferred = ['uuid','originalFileName','scanYear','driveItemId','contentHash','ocrDate','ocrConfidence','ocrPath','uploadedAt','eTag'];
                         const cols = new Set();
                         items.forEach((it) => Object.keys(it || {}).forEach((k) => cols.add(k)));
-                        return Array.from(cols).map((c) => {
+                        const remaining = Array.from(cols).filter((c) => !preferred.includes(c));
+                        const ordered = preferred.concat(remaining);
+                        return ordered.map((c) => {
                           const v = m[c];
                           let txt = '';
                           if (v === null || typeof v === 'undefined') txt = '';
-                          else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') txt = String(v);
+                          else if (c === 'ocrDate') {
+                            try {
+                              txt = v ? new Date(v).toLocaleString() : '';
+                            } catch (e) { txt = String(v); }
+                          } else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') txt = String(v);
                           else txt = JSON.stringify(v);
                           return <td key={c}>{txt}</td>;
                         });
